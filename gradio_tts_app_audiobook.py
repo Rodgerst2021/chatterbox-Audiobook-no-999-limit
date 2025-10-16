@@ -2695,12 +2695,12 @@ def get_project_chunks(project_name: str) -> list:
         
         # Try case-insensitive matching first
         # Pattern for single voice: projectname_001.wav (case insensitive)
-        pattern_single = rf'^{re.escape(project_name)}_(\d{{3}})\.wav$'
+        pattern_single = rf'^{re.escape(project_name)}_(\d+)\.wav$'
         # Pattern for multi-voice: projectname_001_CHARACTER.wav (case insensitive)
-        pattern_multi = rf'^{re.escape(project_name)}_(\d{{3}})_.*\.wav$'
+        pattern_multi = rf'^{re.escape(project_name)}_(\d+)_.*\.wav$'
         
         # Also try with any numeric pattern in case project name doesn't match exactly
-        pattern_any_numeric = r'_(\d{3})(?:_.*)?\.wav$'
+        pattern_any_numeric = r'_(\d+)(?:_.*)?\.wav$'
         
         if (re.match(pattern_single, wav_file, re.IGNORECASE) or 
             re.match(pattern_multi, wav_file, re.IGNORECASE)):

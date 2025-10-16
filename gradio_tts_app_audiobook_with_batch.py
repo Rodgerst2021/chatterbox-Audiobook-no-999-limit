@@ -2167,19 +2167,17 @@ def get_project_chunks(project_name: str) -> list:
         
         # Check if it matches the pattern: projectname_XXX.wav
         import re
-        pattern = rf'^{re.escape(project_name)}_(\d{{3}})\.wav$'
+        pattern = rf'^{re.escape(project_name)}_(\d+)\.wav$'
         if re.match(pattern, wav_file):
             chunk_files.append(wav_file)
     
     # Sort by chunk number (numerically, not lexicographically)
     def extract_chunk_num_from_filename(filename: str) -> int:
         import re
-        match = re.search(r'_(\d{3})\.wav$', filename)
-        if not match:
-            match = re.search(r'_(\d+)\.wav$', filename)
-        if match:
-            return int(match.group(1))
-        return 0
+        match = re.search(r'_(\d+)\.wav$', filename)
+
+        return int(match.group(1)) if match else 0
+
     chunk_files = sorted(chunk_files, key=extract_chunk_num_from_filename)
     
     chunks = []
@@ -2519,107 +2517,8 @@ def load_project_chunks_for_interface(project_name: str, page_num: int = 1, chun
     )
 
 def combine_project_audio_chunks(project_name: str, output_format: str = "wav") -> tuple:
-    """Combine all audio chunks from a project into a single downloadable file"""
-    if not project_name:
-        return None, "❌ No project selected"
+    """Combine
     
-    chunks = get_project_chunks(project_name)
-    
-    if not chunks:
-        return None, f"❌ No audio chunks found in project '{project_name}'"
-    
-    try:
-        combined_audio = []
-        sample_rate = 24000  # Default sample rate
-        total_samples_processed = 0
-        
-        # Sort chunks by chunk number to ensure correct order (not alphabetical)
-        def extract_chunk_number(chunk_info):
-            """Extract chunk number from chunk info for proper numerical sorting"""
-            try:
-                # First try to get chunk_num directly from the chunk info
-                chunk_num = chunk_info.get('chunk_num')
-                if chunk_num is not None:
-                    return int(chunk_num)  # Ensure it's an integer
-            except (ValueError, TypeError):
-                pass
-            
-            # Fallback: try to extract from filename
-            try:
-                filename = chunk_info.get('audio_filename', '') or chunk_info.get('audio_file', '')
-                if filename:
-                    import re
-                    # Look for patterns like "_123.wav" or "_chunk_123.wav"
-                    match = re.search(r'_(\d+)\.wav$', filename)
-                    if match:
-                        return int(match.group(1))
-                    
-                    # Try other patterns like "projectname_123.wav"
-                    match = re.search(r'(\d+)\.wav$', filename)
-                    if match:
-                        return int(match.group(1))
-            except (ValueError, TypeError, AttributeError):
-                pass
-            
-            # Last resort: return 0 (should sort first)
-            print(f"[WARNING] Could not extract chunk number from: {chunk_info}")
-            return 0
-        
-        chunks_sorted = sorted(chunks, key=extract_chunk_number)
-        
-        print(f"[INFO] Combining {len(chunks_sorted)} chunks for project '{project_name}'")
-        chunk_numbers = [extract_chunk_number(c) for c in chunks_sorted[:5]]
-        print(f"[DEBUG] First few chunks: {chunk_numbers}")
-        chunk_numbers = [extract_chunk_number(c) for c in chunks_sorted[-5:]]
-        print(f"[DEBUG] Last few chunks: {chunk_numbers}")
-        
-        # Process chunks in batches to manage memory better
-        batch_size = 50
-        for batch_start in range(0, len(chunks_sorted), batch_size):
-            batch_end = min(batch_start + batch_size, len(chunks_sorted))
-            batch_chunks = chunks_sorted[batch_start:batch_end]
-            
-            print(f"[INFO] Processing batch {batch_start//batch_size + 1}/{(len(chunks_sorted) + batch_size - 1)//batch_size} (chunks {batch_start+1}-{batch_end})")
-            
-            for chunk_info in batch_chunks:
-                chunk_path = chunk_info.get('audio_file')  # Use 'audio_file' instead of 'audio_path'
-                chunk_num = extract_chunk_number(chunk_info)
-                
-                if not chunk_path or not os.path.exists(chunk_path):
-                    print(f"⚠️ Warning: Chunk {chunk_num} file not found: {chunk_path}")
-                    continue
-                
-                try:
-                    with wave.open(chunk_path, 'rb') as wav_file:
-                        chunk_sample_rate = wav_file.getframerate()
-                        chunk_frames = wav_file.getnframes()
-                        chunk_audio_data = wav_file.readframes(chunk_frames)
-                        
-                        # Convert to numpy array (16-bit to float32 for better precision)
-                        chunk_audio_array = np.frombuffer(chunk_audio_data, dtype=np.int16).astype(np.float32) / 32768.0
-                        
-                        if sample_rate != chunk_sample_rate:
-                            print(f"⚠️ Warning: Sample rate mismatch in chunk {chunk_num}: {chunk_sample_rate} vs {sample_rate}")
-                            sample_rate = chunk_sample_rate  # Use the chunk's sample rate
-                        
-                        combined_audio.append(chunk_audio_array)
-                        total_samples_processed += len(chunk_audio_array)
-                        
-                        if chunk_num <= 5 or chunk_num % 100 == 0 or chunk_num > len(chunks_sorted) - 5:
-                            print(f"✅ Added chunk {chunk_num}: {os.path.basename(chunk_path)} ({len(chunk_audio_array)} samples)")
-                        
-                except Exception as e:
-                    print(f"❌ Error reading chunk {chunk_num} ({chunk_path}): {e}")
-                    continue
-        
-        if not combined_audio:
-            return None, "❌ No valid audio chunks found to combine"
-        
-        print(f"[INFO] Concatenating {len(combined_audio)} chunks...")
-        print(f"[INFO] Total samples to process: {total_samples_processed}")
-        
-        # Concatenate all audio using numpy for efficiency
-        final_audio = np.concatenate(combined_audio, axis=0)
         
         print(f"[INFO] Final audio array shape: {final_audio.shape}")
         print(f"[INFO] Final audio duration: {len(final_audio) / sample_rate / 60:.2f} minutes")
